@@ -138,8 +138,8 @@ export class ScheduleController {
   @ApiParam({
     name: "routeStopPairs",
     description:
-      "A semicolon-separated list of `routeId,stopId` pairs to query",
-    example: "st:1_100113,st:1_71971;st:1_102704,st:1_71971",
+      "A semicolon-separated list of `routeId,stopId[,offset][,directionId]` pairs to query. `offset` is in seconds; `directionId` (0 or 1) limits a pair to trips in that direction",
+    example: "st:1_100113,st:1_71971;st:1_102704,st:1_71971,,0",
   })
   @ApiParam({
     name: "limit",
