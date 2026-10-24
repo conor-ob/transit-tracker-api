@@ -99,7 +99,6 @@ There is also a WebSocket interface that can be used to subscribe to real-time s
 
 The following parameters are available to tweak the schedule data:
 
-- `routeStopPairs`: A semicolon-separated list of `routeId,stopId[,offset][,directionId]` pairs. `offset` shifts the pair's times by that many seconds. `directionId` (`0` or `1`) only includes trips in that direction, e.g. `st:1_100113,st:1_71971,,0`.
 - `limit`: The maximum number of trips to return in a single update.
 - `sortByDeparture`: Sort trips by departure time rather than arrival time. This is useful for routes with long dwell times at stops.
 - `listMode`: If `sequential`, then all trips across all routes will be returned in order of arrival or departure time. If `nextPerRoute`, then only the next trip for each route will be returned.
