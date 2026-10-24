@@ -82,7 +82,7 @@ export class ScheduleService {
 
     const sortKey = sortByDeparture ? "departureTime" : "arrivalTime"
     let trips: ScheduleTrip[] = upcomingTrips
-      .map((trip) => {
+      .flatMap((trip) => {
         const matchingPairs = routes.filter(
           (r) => r.routeId === trip.routeId && r.stopId === trip.stopId,
         )
@@ -92,7 +92,7 @@ export class ScheduleService {
 
         // Every pair for this route and stop asked for another direction
         if (matchingPairs.length > 0 && !pair) {
-          return null
+          return []
         }
 
         const offset = pair?.offset
@@ -105,7 +105,6 @@ export class ScheduleService {
             new Date(trip.departureTime).getTime() / 1000 + (offset ?? 0),
         }
       })
-      .filter((trip) => trip !== null)
       .filter((trip) => trip[sortKey] > this.dateTime.now().getTime() / 1000)
       .sort((a, b) => a[sortKey] - b[sortKey])
 
