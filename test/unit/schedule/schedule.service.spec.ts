@@ -551,4 +551,136 @@ describe("ScheduleService", () => {
       expect(() => scheduleService.parseRouteStopPairs(input)).toThrow()
     })
   })
+
+  describe("directionId", () => {
+    it("should parse an optional direction ID after the offset", () => {
+      // Arrange
+      const input = "route1,stop1,10,0;route2,stop2,20,1;route3,stop3"
+
+      // Act
+      const result = scheduleService.parseRouteStopPairs(input)
+
+      // Assert
+      expect(result).toEqual([
+        { routeId: "route1", stopId: "stop1", offset: 10, directionId: "0" },
+        { routeId: "route2", stopId: "stop2", offset: 20, directionId: "1" },
+        { routeId: "route3", stopId: "stop3", offset: 0 },
+      ])
+    })
+
+    it("should treat an empty offset as zero when a direction ID is given", () => {
+      // Arrange
+      const input = "route1,stop1,,1"
+
+      // Act
+      const result = scheduleService.parseRouteStopPairs(input)
+
+      // Assert
+      expect(result).toEqual([
+        { routeId: "route1", stopId: "stop1", offset: 0, directionId: "1" },
+      ])
+    })
+
+    it.each(["2", "-1", "north"])(
+      "should throw an error when the direction ID is %p",
+      (directionId) => {
+        // Arrange
+        const input = `route1,stop1,0,${directionId}`
+
+        // Act & Assert
+        expect(() => scheduleService.parseRouteStopPairs(input)).toThrow()
+      },
+    )
+
+    it("should only include trips in the requested direction", async () => {
+      // Arrange
+      const scheduleOptions: ScheduleOptions = {
+        feedCode: "testFeed",
+        routes: [
+          { routeId: "route1", stopId: "stop1", offset: 0, directionId: "0" },
+        ],
+        limit: 10,
+      }
+
+      const direction0Trips = makeMockTripStops("route1", "stop1", 2, "0")
+      mockFeedProvider.getUpcomingTripsForRoutesAtStops.mockResolvedValue([
+        ...direction0Trips,
+        ...makeMockTripStops("route1", "stop1", 2, "1"),
+        ...makeMockTripStops("route1", "stop1", 2, null),
+      ])
+
+      // Act
+      const schedule = await scheduleService.getSchedule(scheduleOptions)
+
+      // Assert
+      expect(schedule.trips.map((t) => t.tripId).sort()).toEqual(
+        direction0Trips.map((t) => t.tripId).sort(),
+      )
+    })
+
+    it("should apply the offset of the pair for each trip's direction", async () => {
+      // Arrange
+      const scheduleOptions: ScheduleOptions = {
+        feedCode: "testFeed",
+        routes: [
+          { routeId: "route1", stopId: "stop1", offset: -60, directionId: "0" },
+          {
+            routeId: "route1",
+            stopId: "stop1",
+            offset: -120,
+            directionId: "1",
+          },
+        ],
+        limit: 10,
+      }
+
+      const [direction0Trip] = makeMockTripStops("route1", "stop1", 1, "0")
+      const [direction1Trip] = makeMockTripStops("route1", "stop1", 1, "1")
+      direction0Trip.arrivalTime = new Date(Date.now() + 10 * 60000)
+      direction1Trip.arrivalTime = new Date(Date.now() + 20 * 60000)
+      mockFeedProvider.getUpcomingTripsForRoutesAtStops.mockResolvedValue([
+        direction0Trip,
+        direction1Trip,
+      ])
+
+      // Act
+      const schedule = await scheduleService.getSchedule(scheduleOptions)
+
+      // Assert
+      expect(schedule.trips).toEqual([
+        expect.objectContaining({
+          tripId: direction0Trip.tripId,
+          arrivalTime: direction0Trip.arrivalTime.getTime() / 1000 - 60,
+        }),
+        expect.objectContaining({
+          tripId: direction1Trip.tripId,
+          arrivalTime: direction1Trip.arrivalTime.getTime() / 1000 - 120,
+        }),
+      ])
+    })
+
+    it("should keep trips that match no route-stop pair", async () => {
+      // Arrange
+      const scheduleOptions: ScheduleOptions = {
+        feedCode: "testFeed",
+        routes: [
+          { routeId: "route1", stopId: "stop1", offset: 0, directionId: "0" },
+        ],
+        limit: 10,
+      }
+
+      const unmatchedTrips = makeMockTripStops("route2", "stop2", 1, "1")
+      mockFeedProvider.getUpcomingTripsForRoutesAtStops.mockResolvedValue(
+        unmatchedTrips,
+      )
+
+      // Act
+      const schedule = await scheduleService.getSchedule(scheduleOptions)
+
+      // Assert
+      expect(schedule.trips.map((t) => t.tripId)).toEqual(
+        unmatchedTrips.map((t) => t.tripId),
+      )
+    })
+  })
 })

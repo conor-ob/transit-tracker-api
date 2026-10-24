@@ -41,7 +41,10 @@ export interface ScheduleUpdate {
   trips: ScheduleTrip[]
 }
 
-export type RouteAtStopWithOffset = RouteAtStop & { offset: number }
+export type RouteAtStopWithOffset = RouteAtStop & {
+  offset: number
+  directionId?: "0" | "1"
+}
 
 export interface ScheduleOptions {
   feedCode?: string
@@ -79,10 +82,20 @@ export class ScheduleService {
 
     const sortKey = sortByDeparture ? "departureTime" : "arrivalTime"
     let trips: ScheduleTrip[] = upcomingTrips
-      .map((trip) => {
-        const offset = routes.find(
+      .flatMap((trip) => {
+        const matchingPairs = routes.filter(
           (r) => r.routeId === trip.routeId && r.stopId === trip.stopId,
-        )?.offset
+        )
+        const pair = matchingPairs.find(
+          (r) => !r.directionId || r.directionId === trip.directionId,
+        )
+
+        // Every pair for this route and stop asked for another direction
+        if (matchingPairs.length > 0 && !pair) {
+          return []
+        }
+
+        const offset = pair?.offset
 
         return {
           ...trip,
@@ -140,21 +153,27 @@ export class ScheduleService {
     const routeStopPairs = routeStopPairsRaw
       .split(";")
       .map((pair) => pair.split(",").map((part) => part.trim()))
-      .map(([routeId, stopId, offset]) => ({
+      .map(([routeId, stopId, offset, directionId]) => ({
         routeId,
         stopId,
-        offset: parseInt(offset ?? "0"),
+        offset: parseInt(offset || "0"),
+        directionId: (directionId ||
+          undefined) as RouteAtStopWithOffset["directionId"],
       }))
 
     for (const pair of routeStopPairs) {
       if (!pair.routeId || !pair.stopId) {
         throw new BadRequestException(
-          "Invalid route-stop pair; must be in the format routeId,stopId[,offset]",
+          "Invalid route-stop pair; must be in the format routeId,stopId[,offset][,directionId]",
         )
       }
 
       if (isNaN(pair.offset)) {
         throw new BadRequestException("Invalid offset; must be a number")
+      }
+
+      if (pair.directionId && !["0", "1"].includes(pair.directionId)) {
+        throw new BadRequestException("Invalid direction ID; must be 0 or 1")
       }
     }
 
